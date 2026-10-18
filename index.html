@@ -7,50 +7,111 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
   :root {
-    --bg:#f6f7f9; --card:#fff; --text:#1c2230; --muted:#6b7385; --line:#e3e6ec;
-    --accent:#2f5bea; --ok:#1f9d63; --warn:#d9922b; --bad:#d6454a;
+    color-scheme: light dark;
+    --bg:#f5f5f7; --card:#ffffff; --text:#1d1d1f; --muted:#86868b; --line:rgba(0,0,0,.08);
+    --fill:rgba(120,120,128,.12); --fill-hover:rgba(120,120,128,.2);
+    --accent:#0071e3; --accent-hover:#0077ed; --ok:#30a46c; --warn:#f59e0b; --bad:#e5484d;
+    --glass:rgba(255,255,255,.72); --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06);
+    --r:20px; --ease:cubic-bezier(.25,.1,.25,1);
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#12151c; --card:#1b2029; --text:#e8ebf2; --muted:#8c94a7; --line:#2b3140; --accent:#6c8cff; --ok:#3ac286; --warn:#e8a94d; --bad:#ef6b70; }
+    :root { --bg:#000; --card:#1c1c1e; --text:#f5f5f7; --muted:#98989f; --line:rgba(255,255,255,.1);
+      --fill:rgba(120,120,128,.24); --fill-hover:rgba(120,120,128,.36);
+      --accent:#0a84ff; --accent-hover:#409cff; --ok:#32d74b; --warn:#ff9f0a; --bad:#ff453a;
+      --glass:rgba(28,28,30,.72); --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.4); }
   }
   * { box-sizing:border-box; }
-  body { margin:0; font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); }
-  header { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px 16px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
-  header h1 { font-size:17px; margin:0 8px 0 0; }
-  main { max-width:960px; margin:0 auto; padding:16px; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; font:15px/1.47 -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Inter","Segoe UI",Roboto,sans-serif;
+    letter-spacing:-.011em; background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
+  header { display:flex; gap:14px; align-items:center; flex-wrap:wrap; padding:10px max(20px,calc((100vw - 980px)/2));
+    background:var(--glass); -webkit-backdrop-filter:saturate(180%) blur(24px); backdrop-filter:saturate(180%) blur(24px);
+    border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+  header h1 { font-size:17px; font-weight:600; letter-spacing:-.022em; margin:0 6px 0 0; display:flex; align-items:center; gap:8px; }
+  .logo { width:26px; height:26px; border-radius:8px; background:linear-gradient(145deg,#4da3ff,#0071e3 60%,#5e5ce6); display:grid; place-items:center; }
+  .logo::after { content:""; width:10px; height:10px; border-radius:50%; border:2.5px solid #fff; }
+  main { max-width:980px; margin:0 auto; padding:28px 20px 64px; animation:rise .45s var(--ease); }
+  @keyframes rise { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
   .spacer { flex:1; }
-  button, select, input, textarea { font:inherit; color:inherit; }
-  button { cursor:pointer; border:1px solid var(--line); background:var(--card); padding:6px 12px; border-radius:6px; }
-  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button, select, input, textarea { font:inherit; color:inherit; letter-spacing:inherit; }
+  button { cursor:pointer; border:0; background:var(--fill); padding:7px 16px; border-radius:980px; font-weight:500; font-size:14px;
+    transition:background .2s var(--ease), transform .15s var(--ease), opacity .2s; }
+  button:hover { background:var(--fill-hover); }
+  button:active { transform:scale(.97); }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline:3px solid color-mix(in srgb,var(--accent) 40%,transparent); outline-offset:1px; }
+  button.primary { background:var(--accent); color:#fff; }
+  button.primary:hover { background:var(--accent-hover); }
   button.danger { color:var(--bad); }
-  button.link { border:0; background:none; padding:2px 6px; color:var(--muted); }
-  button.link:hover { color:var(--text); }
-  input, select, textarea { width:100%; padding:7px 9px; border:1px solid var(--line); border-radius:6px; background:var(--bg); }
-  header select { width:auto; }
-  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 3px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
-  .obj-head { display:flex; gap:10px; align-items:flex-start; }
-  .obj-head h2 { margin:0; font-size:16px; flex:1; }
-  .meta { color:var(--muted); font-size:12px; }
-  .bar { height:8px; background:var(--line); border-radius:4px; overflow:hidden; margin:6px 0; }
-  .bar > i { display:block; height:100%; background:var(--accent); }
-  .kr { border-top:1px solid var(--line); padding:10px 0 4px; margin-top:10px; }
-  .kr-top { display:flex; gap:8px; align-items:center; }
-  .kr-top .t { flex:1; }
-  .pill { font-size:11px; padding:2px 8px; border-radius:10px; color:#fff; white-space:nowrap; }
-  .on_track { background:var(--ok); } .at_risk { background:var(--warn); } .off_track { background:var(--bad); }
+  button.link { background:none; padding:2px 8px; color:var(--accent); font-weight:500; }
+  button.link:hover { background:var(--fill); }
+  .seg { display:inline-flex; background:var(--fill); border-radius:10px; padding:2px; gap:2px; }
+  .seg button { background:none; border-radius:8px; padding:5px 14px; font-size:13px; color:var(--text); }
+  .seg button:hover { background:none; opacity:.7; }
+  .seg button.on { background:var(--card); box-shadow:0 1px 3px rgba(0,0,0,.14); opacity:1; }
+  @media (prefers-color-scheme: dark) { .seg button.on { background:#636366; } }
+  input, select, textarea { width:100%; padding:10px 12px; border:1px solid transparent; border-radius:12px; background:var(--fill); transition:background .2s, border-color .2s; }
+  input:focus, select:focus, textarea:focus { background:var(--card); border-color:var(--accent); outline:none; box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent); }
+  select { appearance:none; -webkit-appearance:none; padding-right:30px; cursor:pointer;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2386868b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 12px center; }
+  header select { width:auto; padding:6px 30px 6px 12px; border-radius:10px; font-size:13px; font-weight:500; }
+  label { display:block; font-size:12px; font-weight:500; color:var(--muted); margin:14px 0 5px 2px; }
+  .card { background:var(--card); border-radius:var(--r); padding:22px 24px; margin-bottom:16px; box-shadow:var(--shadow); }
+  .obj-head { display:flex; gap:14px; align-items:center; }
+  .obj-head h2 { margin:0; font-size:20px; font-weight:600; letter-spacing:-.022em; line-height:1.25; flex:1; }
+  .meta { color:var(--muted); font-size:13px; }
+  .ring { position:relative; width:46px; height:46px; flex:none; }
+  .ring svg { transform:rotate(-90deg); display:block; }
+  .ring circle { fill:none; stroke-width:5; }
+  .ring .t { stroke:var(--fill); }
+  .ring .v { stroke:var(--accent); stroke-linecap:round; transition:stroke-dashoffset .8s var(--ease); }
+  .ring b { position:absolute; inset:0; display:grid; place-items:center; font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .bar { height:6px; background:var(--fill); border-radius:3px; overflow:hidden; margin:8px 0 6px; }
+  .bar > i { display:block; height:100%; border-radius:3px; background:linear-gradient(90deg,#4da3ff,var(--accent)); transition:width .8s var(--ease); }
+  .kr { border-top:1px solid var(--line); padding:14px 0 6px; margin-top:14px; }
+  .kr-top { display:flex; gap:10px; align-items:center; }
+  .kr-top .t { flex:1; font-weight:500; }
+  .pill { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:500; padding:3px 10px 3px 8px; border-radius:980px; white-space:nowrap;
+    background:color-mix(in srgb,var(--c) 14%,transparent); color:var(--c); }
+  .pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--c); }
+  .on_track { --c:var(--ok); } .at_risk { --c:var(--warn); } .off_track { --c:var(--bad); }
   .pct { font-variant-numeric:tabular-nums; font-weight:600; min-width:44px; text-align:right; }
-  .auth { max-width:360px; margin:12vh auto; }
-  .err { color:var(--bad); font-size:13px; margin-top:8px; }
-  .empty { text-align:center; color:var(--muted); padding:40px 0; }
-  dialog { border:1px solid var(--line); border-radius:12px; background:var(--card); color:var(--text); width:min(480px,92vw); padding:18px; }
-  dialog::backdrop { background:rgba(0,0,0,.45); }
-  dialog h3 { margin:0 0 4px; }
-  .row { display:flex; gap:10px; } .row > * { flex:1; }
-  .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
-  .hist { font-size:12px; color:var(--muted); margin:2px 0 6px; }
-  table { width:100%; border-collapse:collapse; } td,th { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); font-size:13px; }
-  .child { margin-left:18px; border-left:3px solid var(--line); padding-left:10px; }
+  .auth { max-width:400px; margin:14vh auto; padding:36px 32px; text-align:center; }
+  .auth form, .auth .left { text-align:left; }
+  .auth h1 { font-size:28px; font-weight:700; letter-spacing:-.03em; margin:14px 0 4px; }
+  .auth .logo { width:56px; height:56px; border-radius:16px; margin:0 auto; }
+  .auth .logo::after { width:22px; height:22px; border-width:5px; }
+  .auth .actions { margin-top:22px; }
+  .auth button.primary { padding:10px 22px; }
+  .err { color:var(--bad); font-size:13px; margin-top:10px; min-height:0; }
+  .empty { text-align:center; color:var(--muted); padding:72px 0; font-size:17px; }
+  dialog { border:0; border-radius:24px; background:var(--card); color:var(--text); width:min(500px,92vw); padding:28px; box-shadow:0 24px 80px rgba(0,0,0,.35); max-height:88vh; }
+  dialog[open] { animation:pop .3s var(--ease); }
+  @keyframes pop { from { opacity:0; transform:scale(.94) translateY(8px); } to { opacity:1; transform:none; } }
+  dialog::backdrop { background:rgba(0,0,0,.4); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); }
+  dialog h3 { margin:0 0 6px; font-size:22px; font-weight:600; letter-spacing:-.025em; }
+  .row { display:flex; gap:12px; } .row > * { flex:1; min-width:0; }
+  .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:24px; }
+  .hist { font-size:13px; color:var(--muted); margin:2px 0 6px; }
+  table { width:100%; border-collapse:collapse; }
+  td,th { text-align:left; padding:12px 8px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:middle; }
+  th { font-size:12px; font-weight:500; color:var(--muted); }
+  tr:last-child td { border-bottom:0; }
+  .child { margin-left:22px; padding-left:16px; border-left:2px solid var(--line); }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:18px; }
+  .stat { background:var(--card); border-radius:var(--r); padding:16px 20px; box-shadow:var(--shadow); }
+  .stat b { display:block; font-size:32px; font-weight:700; letter-spacing:-.03em; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .stat span { font-size:13px; color:var(--muted); }
+  .toolbar { display:flex; gap:12px; align-items:center; margin-bottom:18px; }
+  .toolbar select { max-width:200px; }
+  .av { display:inline-grid; place-items:center; width:30px; height:30px; border-radius:50%; background:linear-gradient(145deg,#a1a1aa,#6e6e73); color:#fff; font-size:12px; font-weight:600; margin-right:10px; vertical-align:middle; }
+  h3.sec { margin:0 0 6px; font-size:20px; font-weight:600; letter-spacing:-.022em; }
+  @media (max-width:640px) {
+    main { padding:20px 14px 48px; } .card { padding:18px; } .stats { gap:8px; } .stat { padding:12px 14px; } .stat b { font-size:24px; }
+    .row { flex-wrap:wrap; } .toolbar { flex-wrap:wrap; } .auth { margin:8vh auto; }
+    header .who { display:none; } .child { margin-left:10px; padding-left:10px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
 </style>
 </head>
 <body>
@@ -76,6 +137,8 @@ function objProgress(o) {
   const ks = S.krs.filter(k => k.objective_id === o.id);
   return ks.length ? ks.reduce((a,k) => a + krProgress(k), 0) / ks.length : 0;
 }
+const ring = p => `<div class="ring"><svg width="46" height="46" viewBox="0 0 46 46"><circle class="t" cx="23" cy="23" r="19"/><circle class="v" cx="23" cy="23" r="19" stroke-dasharray="119.4" stroke-dashoffset="${119.4*(1-p)}"/></svg><b>${Math.round(p*100)}</b></div>`;
+const initials = n => String(n||'?').split(/[\s@.]+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('');
 const pct = x => Math.round(x * 100) + '%';
 const name = id => { const p = S.profiles.find(p => p.id === id); return p ? (p.full_name || p.email) : '—'; };
 const canEdit = r => S.me && (S.me.role === 'admin' || r.owner_id === S.me.id || r.created_by === S.me.id);
@@ -111,12 +174,14 @@ async function load() {
 function renderAuth(mode = 'in', msg = '') {
   $('#app').innerHTML = `
   <div class="card auth">
-    <h1 style="margin-top:0">Team OKR</h1>
-    <form id="af">
+    <div class="logo"></div>
+    <h1>Team OKR</h1>
+    <div class="meta">${mode === 'in' ? 'Sign in to continue' : 'Create your account'}</div>
+    <form id="af" style="margin-top:8px">
       ${mode === 'up' ? '<label>Full name</label><input name="full_name" required>' : ''}
       <label>Email</label><input name="email" type="email" required autocomplete="email">
       <label>Password</label><input name="password" type="password" minlength="8" required autocomplete="${mode==='in'?'current-password':'new-password'}">
-      <div class="actions" style="justify-content:space-between">
+      <div class="actions" style="justify-content:space-between;align-items:center">
         <button type="button" class="link" id="sw">${mode === 'in' ? 'Create account' : 'Have an account? Sign in'}</button>
         <button class="primary">${mode === 'in' ? 'Sign in' : 'Sign up'}</button>
       </div>
@@ -138,22 +203,24 @@ function renderAuth(mode = 'in', msg = '') {
 function render() {
   if (!S.session) return renderAuth();
   if (!S.me || !S.me.approved) {
-    $('#app').innerHTML = `<div class="card auth"><h2 style="margin-top:0">Waiting for approval</h2>
+    $('#app').innerHTML = `<div class="card auth"><div class="logo"></div><h1 style="font-size:22px">Waiting for approval</h1>
       <p class="meta">Your account (${esc(S.session.user.email)}) must be approved by a team admin.</p>
-      <div class="actions"><button id="rf">Refresh</button><button id="so">Sign out</button></div></div>`;
+      <div class="actions" style="justify-content:center"><button id="rf" class="primary">Refresh</button><button id="so">Sign out</button></div></div>`;
     $('#rf').onclick = async () => { await load(); render(); };
     $('#so').onclick = () => sb.auth.signOut();
     return;
   }
   const admin = S.me.role === 'admin';
   const header = `<header>
-    <h1>Team OKR</h1>
+    <h1><span class="logo"></span>Team OKR</h1>
     <select id="cy">${S.cycles.map(c => `<option value="${c.id}" ${c.id===S.cycleId?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
-    <button class="${S.view==='okrs'?'primary':''}" data-v="okrs">OKRs</button>
-    <button class="${S.view==='team'?'primary':''}" data-v="team">Team</button>
-    ${admin ? `<button class="${S.view==='admin'?'primary':''}" data-v="admin">Admin</button>` : ''}
+    <div class="seg">
+      <button class="${S.view==='okrs'?'on':''}" data-v="okrs">OKRs</button>
+      <button class="${S.view==='team'?'on':''}" data-v="team">Team</button>
+      ${admin ? `<button class="${S.view==='admin'?'on':''}" data-v="admin">Admin</button>` : ''}
+    </div>
     <span class="spacer"></span>
-    <span class="meta">${esc(S.me.full_name || S.me.email)}</span>
+    <span class="meta who">${esc(S.me.full_name || S.me.email)}</span>
     <button id="so">Sign out</button>
   </header>`;
   $('#app').innerHTML = header + '<main id="main"></main>';
@@ -168,11 +235,10 @@ function objCard(o, depth = 0) {
   const children = S.objectives.filter(c => c.parent_id === o.id && c.cycle_id === S.cycleId);
   const p = objProgress(o);
   return `<div class="${depth ? 'child' : ''}"><div class="card">
-    <div class="obj-head"><h2>${esc(o.title)}</h2><span class="pct">${pct(p)}</span>
+    <div class="obj-head">${ring(p)}<h2>${esc(o.title)}</h2>
       ${canEdit(o) ? `<button class="link" data-act="edit-obj" data-id="${o.id}">Edit</button>` : ''}</div>
     <div class="meta">Owner: ${esc(name(o.owner_id))}${o.parent_id ? ' · aligned to: ' + esc((S.objectives.find(x=>x.id===o.parent_id)||{}).title) : ''}</div>
     ${o.description ? `<div class="meta" style="margin-top:4px">${esc(o.description)}</div>` : ''}
-    <div class="bar"><i style="width:${p*100}%"></i></div>
     ${krs.map(k => {
       const last = S.checkins.filter(c => c.key_result_id === k.id)[0];
       return `<div class="kr"><div class="kr-top">
@@ -185,7 +251,7 @@ function objCard(o, depth = 0) {
           ${canEdit(k) ? ` · <button class="link" data-act="checkin" data-id="${k.id}">Check-in</button><button class="link" data-act="edit-kr" data-id="${k.id}">Edit</button>` : ''}
           <button class="link" data-act="history" data-id="${k.id}">History</button></div></div>`;
     }).join('')}
-    <div style="margin-top:8px"><button class="link" data-act="add-kr" data-id="${o.id}">+ Key result</button></div>
+    <div style="margin-top:10px"><button class="link" data-act="add-kr" data-id="${o.id}">+ Key result</button></div>
   </div>${children.map(c => objCard(c, depth + 1)).join('')}</div>`;
 }
 
@@ -195,11 +261,18 @@ function renderOKRs() {
   let roots = inCycle.filter(o => !o.parent_id || !ids.has(o.parent_id));
   if (S.owner) roots = roots.filter(o => o.owner_id === S.owner);
   const all = inCycle.length ? inCycle.reduce((a,o) => a + objProgress(o), 0) / inCycle.length : 0;
+  const nKr = S.krs.filter(k => ids.has(k.objective_id));
+  const flagged = nKr.filter(k => k.confidence !== 'on_track').length;
   $('#main').innerHTML = `
-    <div class="row" style="align-items:center;margin-bottom:12px">
-      <div><b>${inCycle.length}</b> objectives · overall <b>${pct(all)}</b></div>
-      <select id="ow" style="max-width:200px"><option value="">All owners</option>${S.profiles.filter(p=>p.approved).map(p=>`<option value="${p.id}" ${p.id===S.owner?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('')}</select>
-      <div style="text-align:right;flex:0 0 auto"><button class="primary" data-act="add-obj">+ Objective</button></div>
+    <div class="stats">
+      <div class="stat"><b>${pct(all)}</b><span>Overall progress</span></div>
+      <div class="stat"><b>${inCycle.length}</b><span>Objectives</span></div>
+      <div class="stat"><b>${flagged}</b><span>Key results flagged</span></div>
+    </div>
+    <div class="toolbar">
+      <select id="ow"><option value="">All owners</option>${S.profiles.filter(p=>p.approved).map(p=>`<option value="${p.id}" ${p.id===S.owner?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('')}</select>
+      <span class="spacer"></span>
+      <button class="primary" data-act="add-obj">+ Objective</button>
     </div>
     ${roots.length ? roots.map(o => objCard(o)).join('') : '<div class="empty">No objectives yet for this cycle.</div>'}`;
   $('#ow').onchange = e => { S.owner = e.target.value; renderOKRs(); bind(); };
@@ -212,7 +285,7 @@ function renderTeam() {
     const ks = S.krs.filter(k => k.owner_id === p.id && S.objectives.find(o => o.id === k.objective_id && o.cycle_id === S.cycleId));
     const avg = ks.length ? ks.reduce((a,k)=>a+krProgress(k),0)/ks.length : 0;
     const risk = ks.filter(k => k.confidence !== 'on_track').length;
-    return `<tr><td>${esc(p.full_name||p.email)}</td><td>${os.length}</td><td>${ks.length}</td><td>${ks.length?pct(avg):'—'}</td><td>${risk ? `<span class="pill at_risk">${risk} flagged</span>` : ''}</td></tr>`;
+    return `<tr><td><span class="av">${esc(initials(p.full_name||p.email))}</span>${esc(p.full_name||p.email)}</td><td>${os.length}</td><td>${ks.length}</td><td>${ks.length?pct(avg):'—'}</td><td>${risk ? `<span class="pill at_risk">${risk} flagged</span>` : ''}</td></tr>`;
   }).join('');
   $('#main').innerHTML = `<div class="card"><table><tr><th>Member</th><th>Objectives</th><th>KRs</th><th>Avg progress</th><th></th></tr>${rows}</table></div>`;
 }
@@ -220,15 +293,15 @@ function renderTeam() {
 function renderAdmin() {
   const pend = S.profiles.filter(p => !p.approved);
   $('#main').innerHTML = `
-    <div class="card"><h3 style="margin-top:0">Members</h3><table>
-      ${S.profiles.map(p => `<tr><td>${esc(p.full_name)}<div class="meta">${esc(p.email)}</div></td>
+    <div class="card"><h3 class="sec">Members</h3><table>
+      ${S.profiles.map(p => `<tr><td><span class="av" style="float:left">${esc(initials(p.full_name||p.email))}</span><div>${esc(p.full_name)}<div class="meta">${esc(p.email)}</div></div></td>
         <td>${p.approved ? esc(p.role) : '<span class="pill at_risk">pending</span>'}</td>
         <td style="text-align:right">${p.id === S.me.id ? '' : `
           ${p.approved ? '' : `<button data-act="approve" data-id="${p.id}">Approve</button>`}
           <button data-act="toggle-admin" data-id="${p.id}">${p.role==='admin'?'Make member':'Make admin'}</button>
           <button class="danger" data-act="remove-user" data-id="${p.id}">Remove</button>`}</td></tr>`).join('')}
     </table>${pend.length ? '' : '<div class="meta" style="margin-top:6px">No pending requests.</div>'}</div>
-    <div class="card"><h3 style="margin-top:0">Cycles</h3><table>
+    <div class="card"><h3 class="sec">Cycles</h3><table>
       ${S.cycles.map(c => `<tr><td>${esc(c.name)}</td><td class="meta">${c.start_date} → ${c.end_date}</td>
         <td style="text-align:right"><button class="danger" data-act="del-cycle" data-id="${c.id}">Delete</button></td></tr>`).join('')}
     </table><div style="margin-top:8px"><button data-act="add-cycle">+ Cycle</button></div></div>`;
