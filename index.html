@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team OKR</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+  :root {
+    --bg:#f6f7f9; --card:#fff; --text:#1c2230; --muted:#6b7385; --line:#e3e6ec;
+    --accent:#2f5bea; --ok:#1f9d63; --warn:#d9922b; --bad:#d6454a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151c; --card:#1b2029; --text:#e8ebf2; --muted:#8c94a7; --line:#2b3140; --accent:#6c8cff; --ok:#3ac286; --warn:#e8a94d; --bad:#ef6b70; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  header { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px 16px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+  header h1 { font-size:17px; margin:0 8px 0 0; }
+  main { max-width:960px; margin:0 auto; padding:16px; }
+  .spacer { flex:1; }
+  button, select, input, textarea { font:inherit; color:inherit; }
+  button { cursor:pointer; border:1px solid var(--line); background:var(--card); padding:6px 12px; border-radius:6px; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.danger { color:var(--bad); }
+  button.link { border:0; background:none; padding:2px 6px; color:var(--muted); }
+  button.link:hover { color:var(--text); }
+  input, select, textarea { width:100%; padding:7px 9px; border:1px solid var(--line); border-radius:6px; background:var(--bg); }
+  header select { width:auto; }
+  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 3px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+  .obj-head { display:flex; gap:10px; align-items:flex-start; }
+  .obj-head h2 { margin:0; font-size:16px; flex:1; }
+  .meta { color:var(--muted); font-size:12px; }
+  .bar { height:8px; background:var(--line); border-radius:4px; overflow:hidden; margin:6px 0; }
+  .bar > i { display:block; height:100%; background:var(--accent); }
+  .kr { border-top:1px solid var(--line); padding:10px 0 4px; margin-top:10px; }
+  .kr-top { display:flex; gap:8px; align-items:center; }
+  .kr-top .t { flex:1; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:10px; color:#fff; white-space:nowrap; }
+  .on_track { background:var(--ok); } .at_risk { background:var(--warn); } .off_track { background:var(--bad); }
+  .pct { font-variant-numeric:tabular-nums; font-weight:600; min-width:44px; text-align:right; }
+  .auth { max-width:360px; margin:12vh auto; }
+  .err { color:var(--bad); font-size:13px; margin-top:8px; }
+  .empty { text-align:center; color:var(--muted); padding:40px 0; }
+  dialog { border:1px solid var(--line); border-radius:12px; background:var(--card); color:var(--text); width:min(480px,92vw); padding:18px; }
+  dialog::backdrop { background:rgba(0,0,0,.45); }
+  dialog h3 { margin:0 0 4px; }
+  .row { display:flex; gap:10px; } .row > * { flex:1; }
+  .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+  .hist { font-size:12px; color:var(--muted); margin:2px 0 6px; }
+  table { width:100%; border-collapse:collapse; } td,th { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); font-size:13px; }
+  .child { margin-left:18px; border-left:3px solid var(--line); padding-left:10px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<dialog id="dlg"></dialog>
+<script>
+const SUPABASE_URL = 'https://khqlnironeighgxkdlpo.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_BzMJKmeCKGSKPWs0psnd-A_L_u4QK1U'; // publishable: safe to expose, RLS protects data
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LABEL = { on_track:'On track', at_risk:'At risk', off_track:'Off track' };
+
+const S = { session:null, me:null, profiles:[], cycles:[], cycleId:null, objectives:[], krs:[], checkins:[], view:'okrs', owner:'' };
+
+function krProgress(k) {
+  const span = Number(k.target_value) - Number(k.start_value);
+  if (!span) return Number(k.current_value) >= Number(k.target_value) ? 1 : 0;
+  return Math.max(0, Math.min(1, (Number(k.current_value) - Number(k.start_value)) / span));
+}
+function objProgress(o) {
+  const ks = S.krs.filter(k => k.objective_id === o.id);
+  return ks.length ? ks.reduce((a,k) => a + krProgress(k), 0) / ks.length : 0;
+}
+const pct = x => Math.round(x * 100) + '%';
+const name = id => { const p = S.profiles.find(p => p.id === id); return p ? (p.full_name || p.email) : '—'; };
+const canEdit = r => S.me && (S.me.role === 'admin' || r.owner_id === S.me.id || r.created_by === S.me.id);
+
+async function boot() {
+  const { data } = await sb.auth.getSession();
+  S.session = data.session;
+  sb.auth.onAuthStateChange((_e, s) => { const changed = (!!s) !== (!!S.session); S.session = s; if (changed) boot(); });
+  if (!S.session) return renderAuth();
+  await load();
+  render();
+}
+
+async function load() {
+  const uid = S.session.user.id;
+  const me = await sb.from('profiles').select('*').eq('id', uid).single();
+  S.me = me.data;
+  if (!S.me || !S.me.approved) return;
+  const [p, c, o, k, ci] = await Promise.all([
+    sb.from('profiles').select('*').order('full_name'),
+    sb.from('cycles').select('*').order('start_date', { ascending:false }),
+    sb.from('objectives').select('*').order('created_at'),
+    sb.from('key_results').select('*').order('created_at'),
+    sb.from('check_ins').select('*').order('created_at', { ascending:false }),
+  ]);
+  S.profiles = p.data || []; S.cycles = c.data || []; S.objectives = o.data || []; S.krs = k.data || []; S.checkins = ci.data || [];
+  if (!S.cycleId || !S.cycles.find(x => x.id === S.cycleId)) {
+    const today = new Date().toISOString().slice(0,10);
+    S.cycleId = (S.cycles.find(x => x.start_date <= today && today <= x.end_date) || S.cycles[0] || {}).id || null;
+  }
+}
+
+function renderAuth(mode = 'in', msg = '') {
+  $('#app').innerHTML = `
+  <div class="card auth">
+    <h1 style="margin-top:0">Team OKR</h1>
+    <form id="af">
+      ${mode === 'up' ? '<label>Full name</label><input name="full_name" required>' : ''}
+      <label>Email</label><input name="email" type="email" required autocomplete="email">
+      <label>Password</label><input name="password" type="password" minlength="8" required autocomplete="${mode==='in'?'current-password':'new-password'}">
+      <div class="actions" style="justify-content:space-between">
+        <button type="button" class="link" id="sw">${mode === 'in' ? 'Create account' : 'Have an account? Sign in'}</button>
+        <button class="primary">${mode === 'in' ? 'Sign in' : 'Sign up'}</button>
+      </div>
+      <div class="err" id="ae">${esc(msg)}</div>
+    </form>
+  </div>`;
+  $('#sw').onclick = () => renderAuth(mode === 'in' ? 'up' : 'in');
+  $('#af').onsubmit = async e => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(e.target));
+    const r = mode === 'in'
+      ? await sb.auth.signInWithPassword({ email:f.email, password:f.password })
+      : await sb.auth.signUp({ email:f.email, password:f.password, options:{ data:{ full_name:f.full_name }, emailRedirectTo: location.href.split('#')[0] } });
+    if (r.error) return $('#ae').textContent = r.error.message;
+    if (mode === 'up' && !r.data.session) return renderAuth('in', 'Check your email to confirm, then sign in.');
+  };
+}
+
+function render() {
+  if (!S.session) return renderAuth();
+  if (!S.me || !S.me.approved) {
+    $('#app').innerHTML = `<div class="card auth"><h2 style="margin-top:0">Waiting for approval</h2>
+      <p class="meta">Your account (${esc(S.session.user.email)}) must be approved by a team admin.</p>
+      <div class="actions"><button id="rf">Refresh</button><button id="so">Sign out</button></div></div>`;
+    $('#rf').onclick = async () => { await load(); render(); };
+    $('#so').onclick = () => sb.auth.signOut();
+    return;
+  }
+  const admin = S.me.role === 'admin';
+  const header = `<header>
+    <h1>Team OKR</h1>
+    <select id="cy">${S.cycles.map(c => `<option value="${c.id}" ${c.id===S.cycleId?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
+    <button class="${S.view==='okrs'?'primary':''}" data-v="okrs">OKRs</button>
+    <button class="${S.view==='team'?'primary':''}" data-v="team">Team</button>
+    ${admin ? `<button class="${S.view==='admin'?'primary':''}" data-v="admin">Admin</button>` : ''}
+    <span class="spacer"></span>
+    <span class="meta">${esc(S.me.full_name || S.me.email)}</span>
+    <button id="so">Sign out</button>
+  </header>`;
+  $('#app').innerHTML = header + '<main id="main"></main>';
+  $('#so').onclick = () => sb.auth.signOut();
+  $('#cy').onchange = e => { S.cycleId = e.target.value; render(); };
+  document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { S.view = b.dataset.v; render(); });
+  ({ okrs:renderOKRs, team:renderTeam, admin:renderAdmin })[S.view]();
+}
+
+function objCard(o, depth = 0) {
+  const krs = S.krs.filter(k => k.objective_id === o.id);
+  const children = S.objectives.filter(c => c.parent_id === o.id && c.cycle_id === S.cycleId);
+  const p = objProgress(o);
+  return `<div class="${depth ? 'child' : ''}"><div class="card">
+    <div class="obj-head"><h2>${esc(o.title)}</h2><span class="pct">${pct(p)}</span>
+      ${canEdit(o) ? `<button class="link" data-act="edit-obj" data-id="${o.id}">Edit</button>` : ''}</div>
+    <div class="meta">Owner: ${esc(name(o.owner_id))}${o.parent_id ? ' · aligned to: ' + esc((S.objectives.find(x=>x.id===o.parent_id)||{}).title) : ''}</div>
+    ${o.description ? `<div class="meta" style="margin-top:4px">${esc(o.description)}</div>` : ''}
+    <div class="bar"><i style="width:${p*100}%"></i></div>
+    ${krs.map(k => {
+      const last = S.checkins.filter(c => c.key_result_id === k.id)[0];
+      return `<div class="kr"><div class="kr-top">
+        <span class="t">${esc(k.title)}</span>
+        <span class="pill ${k.confidence}">${LABEL[k.confidence]}</span>
+        <span class="pct">${pct(krProgress(k))}</span></div>
+        <div class="bar"><i style="width:${krProgress(k)*100}%"></i></div>
+        <div class="hist">${esc(k.current_value)} / ${esc(k.target_value)} ${esc(k.unit)} (from ${esc(k.start_value)}) · ${esc(name(k.owner_id))}
+          ${last ? ` · last: “${esc(last.comment || '—')}” ${new Date(last.created_at).toLocaleDateString()}` : ''}
+          ${canEdit(k) ? ` · <button class="link" data-act="checkin" data-id="${k.id}">Check-in</button><button class="link" data-act="edit-kr" data-id="${k.id}">Edit</button>` : ''}
+          <button class="link" data-act="history" data-id="${k.id}">History</button></div></div>`;
+    }).join('')}
+    <div style="margin-top:8px"><button class="link" data-act="add-kr" data-id="${o.id}">+ Key result</button></div>
+  </div>${children.map(c => objCard(c, depth + 1)).join('')}</div>`;
+}
+
+function renderOKRs() {
+  const inCycle = S.objectives.filter(o => o.cycle_id === S.cycleId);
+  const ids = new Set(inCycle.map(o => o.id));
+  let roots = inCycle.filter(o => !o.parent_id || !ids.has(o.parent_id));
+  if (S.owner) roots = roots.filter(o => o.owner_id === S.owner);
+  const all = inCycle.length ? inCycle.reduce((a,o) => a + objProgress(o), 0) / inCycle.length : 0;
+  $('#main').innerHTML = `
+    <div class="row" style="align-items:center;margin-bottom:12px">
+      <div><b>${inCycle.length}</b> objectives · overall <b>${pct(all)}</b></div>
+      <select id="ow" style="max-width:200px"><option value="">All owners</option>${S.profiles.filter(p=>p.approved).map(p=>`<option value="${p.id}" ${p.id===S.owner?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('')}</select>
+      <div style="text-align:right;flex:0 0 auto"><button class="primary" data-act="add-obj">+ Objective</button></div>
+    </div>
+    ${roots.length ? roots.map(o => objCard(o)).join('') : '<div class="empty">No objectives yet for this cycle.</div>'}`;
+  $('#ow').onchange = e => { S.owner = e.target.value; renderOKRs(); bind(); };
+  bind();
+}
+
+function renderTeam() {
+  const rows = S.profiles.filter(p => p.approved).map(p => {
+    const os = S.objectives.filter(o => o.owner_id === p.id && o.cycle_id === S.cycleId);
+    const ks = S.krs.filter(k => k.owner_id === p.id && S.objectives.find(o => o.id === k.objective_id && o.cycle_id === S.cycleId));
+    const avg = ks.length ? ks.reduce((a,k)=>a+krProgress(k),0)/ks.length : 0;
+    const risk = ks.filter(k => k.confidence !== 'on_track').length;
+    return `<tr><td>${esc(p.full_name||p.email)}</td><td>${os.length}</td><td>${ks.length}</td><td>${ks.length?pct(avg):'—'}</td><td>${risk ? `<span class="pill at_risk">${risk} flagged</span>` : ''}</td></tr>`;
+  }).join('');
+  $('#main').innerHTML = `<div class="card"><table><tr><th>Member</th><th>Objectives</th><th>KRs</th><th>Avg progress</th><th></th></tr>${rows}</table></div>`;
+}
+
+function renderAdmin() {
+  const pend = S.profiles.filter(p => !p.approved);
+  $('#main').innerHTML = `
+    <div class="card"><h3 style="margin-top:0">Members</h3><table>
+      ${S.profiles.map(p => `<tr><td>${esc(p.full_name)}<div class="meta">${esc(p.email)}</div></td>
+        <td>${p.approved ? esc(p.role) : '<span class="pill at_risk">pending</span>'}</td>
+        <td style="text-align:right">${p.id === S.me.id ? '' : `
+          ${p.approved ? '' : `<button data-act="approve" data-id="${p.id}">Approve</button>`}
+          <button data-act="toggle-admin" data-id="${p.id}">${p.role==='admin'?'Make member':'Make admin'}</button>
+          <button class="danger" data-act="remove-user" data-id="${p.id}">Remove</button>`}</td></tr>`).join('')}
+    </table>${pend.length ? '' : '<div class="meta" style="margin-top:6px">No pending requests.</div>'}</div>
+    <div class="card"><h3 style="margin-top:0">Cycles</h3><table>
+      ${S.cycles.map(c => `<tr><td>${esc(c.name)}</td><td class="meta">${c.start_date} → ${c.end_date}</td>
+        <td style="text-align:right"><button class="danger" data-act="del-cycle" data-id="${c.id}">Delete</button></td></tr>`).join('')}
+    </table><div style="margin-top:8px"><button data-act="add-cycle">+ Cycle</button></div></div>`;
+  bind();
+}
+
+// ---------- dialogs ----------
+function dialog(title, bodyHtml, onSubmit, opts = {}) {
+  const d = $('#dlg');
+  d.innerHTML = `<form method="dialog"><h3>${esc(title)}</h3>${bodyHtml}
+    <div class="err" id="de"></div>
+    <div class="actions">${opts.del ? '<button type="button" class="danger" id="dd" style="margin-right:auto">Delete</button>' : ''}
+      <button type="button" id="dc">Cancel</button>${opts.noSubmit ? '' : '<button class="primary">Save</button>'}</div></form>`;
+  d.showModal();
+  $('#dc').onclick = () => d.close();
+  if (opts.del) $('#dd').onclick = async () => {
+    if (!confirm('Delete permanently?')) return;
+    const r = await opts.del(); if (r && r.error) return $('#de').textContent = r.error.message;
+    d.close(); await refresh();
+  };
+  d.querySelector('form').onsubmit = async e => {
+    e.preventDefault();
+    if (opts.noSubmit) return;
+    const r = await onSubmit(Object.fromEntries(new FormData(e.target)));
+    if (r && r.error) return $('#de').textContent = r.error.message;
+    d.close(); await refresh();
+  };
+}
+async function refresh() { await load(); render(); }
+
+const ownerOpts = sel => '<option value="">—</option>' + S.profiles.filter(p=>p.approved).map(p => `<option value="${p.id}" ${p.id===sel?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('');
+const num = v => v === '' || v == null ? null : Number(v);
+
+function objDialog(o) {
+  const parents = S.objectives.filter(x => x.cycle_id === (o ? o.cycle_id : S.cycleId) && (!o || x.id !== o.id));
+  dialog(o ? 'Edit objective' : 'New objective', `
+    <label>Title</label><input name="title" required value="${esc(o?.title)}">
+    <label>Description</label><textarea name="description" rows="3">${esc(o?.description)}</textarea>
+    <div class="row"><div><label>Owner</label><select name="owner_id">${ownerOpts(o ? o.owner_id : S.me.id)}</select></div>
+    <div><label>Aligns to</label><select name="parent_id"><option value="">— none —</option>${parents.map(p=>`<option value="${p.id}" ${o&&o.parent_id===p.id?'selected':''}>${esc(p.title)}</option>`).join('')}</select></div></div>`,
+    f => {
+      const row = { title:f.title, description:f.description, owner_id:f.owner_id||null, parent_id:f.parent_id||null };
+      return o ? sb.from('objectives').update(row).eq('id', o.id) : sb.from('objectives').insert({ ...row, cycle_id:S.cycleId });
+    }, o ? { del: () => sb.from('objectives').delete().eq('id', o.id) } : {});
+}
+
+function krDialog(k, objectiveId) {
+  dialog(k ? 'Edit key result' : 'New key result', `
+    <label>Title</label><input name="title" required value="${esc(k?.title)}">
+    <div class="row"><div><label>Start</label><input name="start_value" type="number" step="any" required value="${k ? k.start_value : 0}"></div>
+    <div><label>Target</label><input name="target_value" type="number" step="any" required value="${k ? k.target_value : 100}"></div>
+    <div><label>Unit</label><input name="unit" placeholder="%, €, users…" value="${esc(k?.unit)}"></div></div>
+    <label>Owner</label><select name="owner_id">${ownerOpts(k ? k.owner_id : S.me.id)}</select>`,
+    f => {
+      const row = { title:f.title, start_value:num(f.start_value), target_value:num(f.target_value), unit:f.unit, owner_id:f.owner_id||null };
+      return k ? sb.from('key_results').update(row).eq('id', k.id)
+               : sb.from('key_results').insert({ ...row, current_value:num(f.start_value), objective_id:objectiveId });
+    }, k ? { del: () => sb.from('key_results').delete().eq('id', k.id) } : {});
+}
+
+function checkinDialog(k) {
+  dialog('Check-in: ' + k.title, `
+    <div class="row"><div><label>Current value (${esc(k.unit)})</label><input name="value" type="number" step="any" required value="${k.current_value}"></div>
+    <div><label>Confidence</label><select name="confidence">${Object.entries(LABEL).map(([v,l])=>`<option value="${v}" ${k.confidence===v?'selected':''}>${l}</option>`).join('')}</select></div></div>
+    <label>Comment</label><textarea name="comment" rows="3"></textarea>`,
+    f => sb.from('check_ins').insert({ key_result_id:k.id, value:num(f.value), confidence:f.confidence, comment:f.comment }));
+}
+
+function historyDialog(k) {
+  const cs = S.checkins.filter(c => c.key_result_id === k.id);
+  dialog('History: ' + k.title, cs.length ? `<table>${cs.map(c => `<tr><td>${new Date(c.created_at).toLocaleDateString()}</td><td>${esc(c.value)} ${esc(k.unit)}</td>
+    <td><span class="pill ${c.confidence}">${LABEL[c.confidence]}</span></td><td>${esc(c.comment)}<div class="meta">${esc(name(c.author_id))}</div></td></tr>`).join('')}</table>` : '<p class="meta">No check-ins yet.</p>', null, { noSubmit:true });
+}
+
+function cycleDialog() {
+  dialog('New cycle', `<label>Name</label><input name="name" required placeholder="Q2 2027">
+    <div class="row"><div><label>Start</label><input name="start_date" type="date" required></div><div><label>End</label><input name="end_date" type="date" required></div></div>`,
+    f => sb.from('cycles').insert(f));
+}
+
+function bind() {
+  document.querySelectorAll('[data-act]').forEach(b => b.onclick = async () => {
+    const id = b.dataset.id, a = b.dataset.act;
+    const obj = S.objectives.find(x => x.id === id), kr = S.krs.find(x => x.id === id);
+    if (a === 'add-obj') objDialog();
+    else if (a === 'edit-obj') objDialog(obj);
+    else if (a === 'add-kr') krDialog(null, id);
+    else if (a === 'edit-kr') krDialog(kr);
+    else if (a === 'checkin') checkinDialog(kr);
+    else if (a === 'history') historyDialog(kr);
+    else if (a === 'add-cycle') cycleDialog();
+    else if (a === 'del-cycle') { if (confirm('Delete this cycle and ALL its objectives?')) { await sb.from('cycles').delete().eq('id', id); await refresh(); } }
+    else if (a === 'approve') { await sb.from('profiles').update({ approved:true }).eq('id', id); await refresh(); }
+    else if (a === 'toggle-admin') { const p = S.profiles.find(x => x.id === id); await sb.from('profiles').update({ role: p.role === 'admin' ? 'member' : 'admin' }).eq('id', id); await refresh(); }
+    else if (a === 'remove-user') { if (confirm('Remove this member profile?')) { await sb.from('profiles').delete().eq('id', id); await refresh(); } }
+  });
+}
+
+boot();
+</script>
+</body>
+</html>
